@@ -18719,7 +18719,7 @@ You can not use bank while refining.
 장비 세트 설정 중인 아이템입니다.
 The item has bind to set equipment.
 */
-	MSG_ID_BC7 = 0xbc7,
+	C_ITEM_EQUIP_SWITCH = 0xbc7,
 #endif
 #if PACKETVER >= 20161123
 /*20161123 to latest

@@ -2222,6 +2222,9 @@ static void clif_selllist(struct map_session_data *sd)
 			if( sd->status.inventory[i].bound && !pc_can_give_bound_items(sd))
 				continue; // Don't allow sale of bound items
 
+			if( sd->status.inventory[i].equipSwitch != 0)
+				continue; // Cannot Sell EquipSwitch item
+
 			val=sd->inventory_data[i]->value_sell;
 			if( val < 0 )
 				continue;
@@ -9402,6 +9405,7 @@ static void clif_refresh(struct map_session_data *sd)
 
 	clif->changemap(sd,sd->bl.m,sd->bl.x,sd->bl.y);
 	clif->inventoryList(sd);
+	clif->equipswitch_list(sd);
 	if(pc_iscarton(sd)) {
 		clif->cartList(sd);
 		clif->updatestatus(sd,SP_CARTINFO);
@@ -10906,6 +10910,7 @@ static void clif_parse_LoadEndAck(int fd, struct map_session_data *sd)
 
 	// Check for and delete unavailable/disabled items.
 	pc->checkitem(sd);
+	clif->equipswitch_list(sd);
 
 	// Send character's guild info to the client. Call this before clif->spawn() to show guild emblems correctly.
 	if (sd->status.guild_id != 0)
@@ -13104,9 +13109,9 @@ static void clif_useSkillToIdReal(int fd, struct map_session_data *sd, int skill
 		else
 			skill_lv = 0;
 	} else {
-		tmp = pc->checkskill(sd, skill_id);
-		if (skill_lv > tmp)
-			skill_lv = tmp;
+		if (skill_id != ALL_EQSWITCH) {
+			skill_lv = min(pc->checkskill(sd, skill_id), skill_lv); //never trust client
+		}
 	}
 
 	pc->delinvincibletimer(sd);
@@ -13745,6 +13750,11 @@ static void clif_parse_MoveToKafra(int fd, struct map_session_data *sd)
 	if (item_index < 0 || item_index >= sd->status.inventorySize || item_amount < 1)
 		return;
 
+	if (sd->status.inventory[item_index].equipSwitch) {
+		clif->msgtable_color(sd, C_ITEM_EQUIP_SWITCH, COLOR_RED);
+		return;
+	}
+
 	if (sd->state.storage_flag == STORAGE_FLAG_NORMAL)
 		storage->add(sd, item_index, item_amount);
 	else if (sd->state.storage_flag == STORAGE_FLAG_GUILD)
@@ -13782,6 +13792,15 @@ static void clif_parse_MoveToKafraFromCart(int fd, struct map_session_data *sd)
 	if (!pc_iscarton(sd))
 		return;
 
+	int idx = RFIFOW(fd, 2);
+	int amount = RFIFOL(fd, 4);
+
+	if (idx < 0 || idx >= MAX_INVENTORY || amount < 1)
+		return;
+	if (sd->status.inventory[idx].equipSwitch) {
+		clif->msgtable_color(sd, C_ITEM_EQUIP_SWITCH, COLOR_RED);
+		return;
+	}
 	if (sd->state.storage_flag == STORAGE_FLAG_NORMAL)
 		storage->addfromcart(sd, RFIFOW(fd,2) - 2, RFIFOL(fd,4));
 	else if (sd->state.storage_flag == STORAGE_FLAG_GUILD)
@@ -17431,7 +17450,12 @@ static void clif_parse_Mail_setattach(int fd, struct map_session_data *sd)
 		return;
 
 	flag = mail->setitem(sd, idx, amount);
-	clif->mail_setattachment(fd,idx,flag);
+	if (flag == MAIL_ATTACH_EQUIPSWITCH) {
+		clif->msgtable_color(sd, C_ITEM_EQUIP_SWITCH, COLOR_RED);
+	}
+	else {
+		clif->mail_setattachment(fd, idx, flag);
+	}
 }
 
 static void clif_parse_Mail_winopen(int fd, struct map_session_data *sd) __attribute__((nonnull (2)));
@@ -23590,6 +23614,202 @@ static void clif_parse_cameraInfo(int fd, struct map_session_data *sd)
 #endif
 }
 
+/// Send the full list of items in the equip switch window
+/// 0a9b <length>.W { <index>.W <position>.L }*
+void clif_equipswitch_list(struct map_session_data* sd) {
+#if PACKETVER >= 20170208
+	int fd = sd->fd;
+	int offset, i, position;
+
+	WFIFOW(fd, 0) = 0xa9b;
+	for (i = 0, offset = 4, position = 0; i < EQI_MAX; i++) {
+		short index = sd->equip_switch_index[i];
+
+		if (index >= 0 && !(position & pc->equip_pos[i])) {
+			WFIFOW(fd, offset) = index + 2;
+			WFIFOL(fd, offset + 2) = sd->status.inventory[index].equipSwitch;
+			position |= sd->status.inventory[index].equipSwitch;
+			offset += 6;
+		}
+	}
+	WFIFOW(fd, 2) = offset;
+	WFIFOSET(fd, offset);
+#endif
+}
+
+/// Acknowledgement for removing an equip to the equip switch window
+/// 0a9a <index>.W <position.>.L <failure>.W
+void clif_equipswitch_remove(struct map_session_data* sd, uint16 index, uint32 pos, bool failed) {
+#if PACKETVER >= 20170208
+	int fd = sd->fd;
+
+	WFIFOHEAD(fd, packet_len(0xa9a));
+	WFIFOW(fd, 0) = 0xa9a;
+	WFIFOW(fd, 2) = index + 2;
+	WFIFOL(fd, 4) = pos;
+	WFIFOW(fd, 8) = failed;
+	WFIFOSET(fd, packet_len(0xa9a));
+#endif
+}
+
+/// Request to remove an equip from the equip switch window
+/// 0a99 <index>.W <position>.L <= 20170502
+/// 0a99 <index>.W
+void clif_parse_equipswitch_remove(int fd, struct map_session_data* sd) {
+#if PACKETVER >= 20170208
+	uint16 index = RFIFOW(fd, 2) - 2;
+	bool removed = false;
+
+	if (!battle_config.feature_equipswitch) {
+		return;
+	}
+
+	// Check if the index is valid
+	if (index >= MAX_INVENTORY) {
+		return;
+	}
+
+	pc->equipswitch_remove(sd, index);
+#endif
+}
+
+/// Acknowledgement for adding an equip to the equip switch window
+/// 0a98 <index>.W <position.>.L <flag>.L  <= 20170502
+/// 0a98 <index>.W <position.>.L <flag>.W
+void clif_equipswitch_add(struct map_session_data* sd, uint16 index, uint32 pos, uint8 flag) {
+#if PACKETVER >= 20170208
+	int fd = sd->fd;
+
+	WFIFOHEAD(fd, packet_len(0xa98));
+	WFIFOW(fd, 0) = 0xa98;
+	WFIFOW(fd, 2) = index + 2;
+	WFIFOL(fd, 4) = pos;
+#if PACKETVER <= 20170502
+	WFIFOL(fd, 8) = flag;
+#else
+	WFIFOW(fd, 8) = flag;
+#endif
+	WFIFOSET(fd, packet_len(0xa98));
+#endif
+}
+
+/// Request to add an equip to the equip switch window
+/// 0a97 <index>.W <position>.L
+void clif_parse_equipswitch_add(int fd, struct map_session_data* sd) {
+#if PACKETVER >= 20170208
+	uint16 index = RFIFOW(fd, 2) - 2;
+	uint32 position = RFIFOL(fd, 4);
+
+	if (!battle_config.feature_equipswitch) {
+		return;
+	}
+
+	if (index >= MAX_INVENTORY || !sd->inventory_data[index]) {
+		return;
+	}
+
+	if (sd->state.trading || sd->npc_shopid) {
+		clif->equipswitch_add(sd, index, position, EIA_SUCCESS);
+		return;
+	}
+
+	if (sd->inventory_data[index]->type == IT_AMMO) {
+		position = EQP_AMMO;
+	}
+
+	pc->equipitem(sd, index, position, true);
+#endif
+}
+
+/// Acknowledgement packet for the full equip switch
+/// 0a9d <failed>.W
+void clif_equipswitch_reply(struct map_session_data* sd, bool failed) {
+#if PACKETVER >= 20170208
+	int fd = sd->fd;
+
+	WFIFOHEAD(fd, packet_len(0xa9d));
+	WFIFOW(fd, 0) = 0xa9d;
+	WFIFOW(fd, 2) = failed;
+	WFIFOSET(fd, packet_len(0xa9d));
+#endif
+}
+
+/// Request to do a full equip switch
+/// 0a9c
+void clif_parse_equipswitch_request(int fd, struct map_session_data* sd) {
+#if PACKETVER >= 20170208
+	int i;
+	time_t tick = gettick();
+	uint16 skill_id = ALL_EQSWITCH, skill_lv = 1;
+
+	if (DIFF_TICK(tick, sd->equipswitch_tick) < 0) {
+		// Client will not let you send a request
+		return;
+	}
+
+	sd->equipswitch_tick = tick + skill_get_cooldown(skill_id, skill_lv);
+
+	if (!battle_config.feature_equipswitch) {
+		return;
+	}
+
+	ARR_FIND(0, EQI_MAX, i, sd->equip_switch_index[i] >= 0);
+
+	if (i == EQI_MAX) {
+		// client will show: "There is no item to replace." and should not even come here
+		clif->equipswitch_reply(sd, false);
+		return;
+	}
+
+	if (pc_issit(sd) && !pc_setstand(sd, false)) {
+		return;
+	}
+
+	clif->pUseSkillToId(sd, skill_id, skill_lv, sd->bl.id);
+#endif
+}
+
+/// Request to do a single equip switch
+/// 0ace <index>.W
+void clif_parse_equipswitch_request_single(int fd, struct map_session_data* sd) {
+#if PACKETVER >= 20170502
+	uint16 index = RFIFOW(fd, 2) - 2;
+
+	if (!battle_config.feature_equipswitch) {
+		return;
+	}
+
+	// Check if the index is valid
+	if (index >= MAX_INVENTORY) {
+		return;
+	}
+
+	// Check if the item exists
+	if (!sd->inventory_data[index])
+		return;
+
+	// Check if the item was already added to equip switch
+	if (sd->status.inventory[index].equipSwitch) {
+		if (sd->npc_id) {
+#ifdef RENEWAL
+			if (sd->state.workinprogress == 1) {
+				clif->message(sd, MSG_BUSY);
+				return;
+			}
+#endif
+			if (!sd->npc_item_flag) {
+				return;
+			}
+		}
+
+		pc_equipswitch(sd, index);
+		return;
+	}
+
+	pc->equipitem(sd, index, pc_equippoint(sd, index), true);
+#endif
+}
+
 // show item preview in already opened preview window
 static void clif_item_preview(struct map_session_data *sd, int n)
 {
@@ -25453,4 +25673,14 @@ void clif_defaults(void)
 	clif->pLapineUpgrade_close = clif_parse_lapineUpgrade_close;
 	clif->pLapineUpgrade_makeItem = clif_parse_lapineUpgrade_makeItem;
 	clif->pReqGearOff = clif_parse_reqGearOff;
+
+	// Equip Switch
+	clif->equipswitch_list = clif_equipswitch_list;
+	clif->equipswitch_add = clif_equipswitch_add;
+	clif->parse_equipswitch_add = clif_parse_equipswitch_add;
+	clif->equipswitch_remove = clif_equipswitch_remove;
+	clif->parse_equipswitch_remove = clif_parse_equipswitch_remove;
+	clif->equipswitch_reply = clif_equipswitch_reply;
+	clif->parse_equipswitch_request = clif_parse_equipswitch_request;
+	clif->parse_equipswitch_request_single = clif_parse_equipswitch_request_single;
 }

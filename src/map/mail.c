@@ -108,6 +108,9 @@ static unsigned char mail_setitem(struct map_session_data *sd, int idx, int amou
 			!itemdb_canmail(&sd->status.inventory[idx],pc_get_group_level(sd)) ||
 			(sd->status.inventory[idx].bound && !pc_can_give_bound_items(sd)) )
 			return 1;
+		if (sd->status.inventory[idx].equipSwitch) {
+			return MAIL_ATTACH_EQUIPSWITCH;
+		}
 
 		sd->mail.index = idx;
 		sd->mail.nameid = sd->status.inventory[idx].nameid;

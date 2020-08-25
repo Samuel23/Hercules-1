@@ -27,6 +27,11 @@ struct item;
 struct mail_message;
 struct map_session_data;
 
+enum mail_attach_result {
+	// Unofficial
+	MAIL_ATTACH_EQUIPSWITCH = 99,
+}
+
 struct mail_interface {
 	void (*clear) (struct map_session_data *sd);
 	int (*removeitem) (struct map_session_data *sd, short flag);

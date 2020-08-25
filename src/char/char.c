@@ -741,6 +741,7 @@ static int char_getitemdata_from_sql(struct item *items, int max, int guid, enum
 	const char *tablename = NULL;
 	const char *selectoption = NULL;
 	bool has_favorite = false;
+	bool has_equipswitch = false;
 	StringBuf buf;
 	struct item item = { 0 }; // temp storage variable
 
@@ -756,6 +757,7 @@ static int char_getitemdata_from_sql(struct item *items, int max, int guid, enum
 		tablename = inventory_db;
 		selectoption = "char_id";
 		has_favorite = true;
+		has_equipswitch = true;
 		break;
 	case TABLE_CART:
 		tablename = cart_db;
@@ -779,6 +781,8 @@ static int char_getitemdata_from_sql(struct item *items, int max, int guid, enum
 		StrBuf->Printf(&buf, ", `opt_idx%d`, `opt_val%d`", i, i);
 	if (has_favorite)
 		StrBuf->AppendStr(&buf, ", `favorite`");
+	if (has_equipswitch)
+		StrBuf->AppendStr(&buf, ", `equip_switch`");
 	StrBuf->Printf(&buf, " FROM `%s` WHERE `%s`=?", tablename, selectoption);
 
 	stmt = SQL->StmtMalloc(inter->sql_handle);
@@ -821,6 +825,11 @@ static int char_getitemdata_from_sql(struct item *items, int max, int guid, enum
 			SqlStmt_ShowDebug(stmt);
 	}
 
+	if (has_equipswitch) {
+		if (SQL_ERROR == SQL->StmtBindColumn(stmt, 10 + MAX_SLOTS + MAX_ITEM_OPTIONS * 2, SQLDT_CHAR, &item.equipSwitch, sizeof item.equipSwitch, NULL, NULL))
+			SqlStmt_ShowDebug(stmt);
+	}
+
 	if (SQL->StmtNumRows(stmt) > 0 ) {
 		i = 0;
 		while (SQL_SUCCESS == SQL->StmtNextRow(stmt) && i < max) {
@@ -848,6 +857,7 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 	const char *tablename = NULL;
 	const char *selectoption = NULL;
 	bool has_favorite = false;
+	bool has_equipswitch = false;
 	struct item *cp_items = NULL; // temp item storage variable
 	bool *matched_p = NULL;
 	int total_updates = 0, total_deletes = 0, total_inserts = 0, total_changes = 0;
@@ -860,6 +870,7 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 		tablename = inventory_db;
 		selectoption = "char_id";
 		has_favorite = true;
+		has_equipswitch = true;
 		item_count = MAX_INVENTORY;
 		break;
 	case TABLE_CART:
@@ -917,6 +928,8 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 						StrBuf->AppendStr(&buf, ", `expire_time`, `bound`, `unique_id`");
 						if (has_favorite)
 							StrBuf->AppendStr(&buf, ", `favorite`");
+						if (has_equipswitch)
+							StrBuf->AppendStr(&buf, ", `equip_switch`");
 
 						StrBuf->AppendStr(&buf, ") VALUES ");
 
@@ -931,6 +944,8 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 					StrBuf->Printf(&buf, ", '%u', '%d', '%"PRIu64"'", p_items[j].expire_time, p_items[j].bound, p_items[j].unique_id);
 					if (has_favorite)
 						StrBuf->Printf(&buf, ", %d", p_items[j].favorite);
+					if (has_equipswitch)
+						StrBuf->Printf(&buf, ", %d", p_items[j].equipSwitch);
 
 					StrBuf->AppendStr(&buf, ")");
 
@@ -980,6 +995,8 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 				StrBuf->Printf(&buf, ", `opt_idx%d`, `opt_val%d`", j, j);
 			if (has_favorite)
 				StrBuf->AppendStr(&buf, ", `favorite`");
+			if (has_equipswitch)
+				StrBuf->AppendStr(&buf, ", `equip_switch`");
 			StrBuf->AppendStr(&buf, ") VALUES ");
 		}
 
@@ -994,6 +1011,8 @@ static int char_memitemdata_to_sql(const struct item *p_items, int guid, enum in
 
 		if (has_favorite)
 			StrBuf->Printf(&buf, ", '%d'", p_it->favorite);
+		if (has_equipswitch)
+			StrBuf->Printf(&buf, ", '%d'", p_it->equipSwitch);
 
 		StrBuf->AppendStr(&buf, ")");
 

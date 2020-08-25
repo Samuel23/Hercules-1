@@ -1829,12 +1829,25 @@ packet(0x96e,clif->ackmergeitems);
 	packet(0x0ab6, clif->pLapineUpgrade_makeItem);
 #endif
 
+	// 2017-02-08bRagexeRE
+#if PACKETVER >= 20170208
+	packet(0x0A97, 8, clif->parse_equipswitch_add, 2, 4);
+	packet(0x0A99, 8, clif->parse_equipswitch_remove, 2, 4, 6);
+	packet(0x0A9C, 2, clif->parse_equipswitch_request, 0);
+#endif
+
 // 2017-02-28aRagexeRE
 #if PACKETVER >= 20170228
 // new packets
 	packet(0x0ac0,clif->pRodexOpenMailbox); // CZ_OPEN_RODEXBOX
 	packet(0x0ac1,clif->pRodexRefreshMaillist); // CZ_REQ_REFRESH_RODEX
 // changed packet sizes
+#endif
+
+// 2017-05-02dRagexeRE
+#if PACKETVER >= 20170502
+	packet(0x0A99, 4, clif->parse_equipswitch_remove, 2, 4);
+	packet(0x0ACE, 4, clif->parse_equipswitch_request_single, 0);
 #endif
 
 // 2017-08-30aRagexeRE

@@ -1711,6 +1711,15 @@ struct clif_interface {
 	void (*pLapineUpgrade_close) (int fd, struct map_session_data *sd);
 	void (*pLapineUpgrade_makeItem) (int fd, struct map_session_data *sd);
 	void (*pReqGearOff) (int fd, struct map_session_data *sd);
+	// Equip Switch
+	void (*equipswitch_list) (struct map_session_data *sd);
+	void (*equipswitch_add) (struct map_session_data *sd, uint16 index, uint32 pos, bool failed);
+	void (*parse_equipswitch_add) (int fd, struct map_session_data *sd);
+	void (*equipswitch_remove) (struct map_session_data *sd, uint16 index, uint32 pos, bool failed);
+	void (*parse_equipswitch_remove) (int fd, struct map_session_data *sd);
+	void (*equipswitch_reply) (struct map_session_data *sd, bool failed);
+	void (*parse_equipswitch_request) (int fd, struct map_session_data *sd);
+	void (*parse_equipswitch_request_single) (int fd, struct map_session_data *sd);
 };
 
 #ifdef HERCULES_CORE

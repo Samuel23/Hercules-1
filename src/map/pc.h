@@ -285,6 +285,7 @@ struct map_session_data {
 	struct storage_data storage; ///< Account Storage
 	enum pc_checkitem_types itemcheck;
 	short equip_index[EQI_MAX];
+	short equip_switch_index[EQI_MAX];
 	unsigned int weight,max_weight;
 	int cart_weight,cart_num,cart_weight_max;
 	int fd;
@@ -328,6 +329,7 @@ struct map_session_data {
 	int64 canskill_tick;        /// used to prevent abuse from no-delay ACT files
 	int64 cansendmail_tick;     /// Mail System Flood Protection
 	int64 ks_floodprotect_tick; /// [Kill Steal Protection]
+	int64 equipswitch_tick;		// Equip Switch Delay
 	struct {
 		int nameid;
 		int64 tick;
