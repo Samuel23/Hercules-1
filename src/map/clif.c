@@ -1419,7 +1419,7 @@ static void clif_set_unit_walking(struct block_list *bl, struct map_session_data
 #if PACKETVER >= 20120221
 	if (clif->show_monster_hp_bar(bl)) {
 		p.maxHP = status_get_max_hp(bl);
-		p.HP = status_get_hp(bl);
+		p.HP = status_get_hp(bl);sh
 	} else {
 		p.maxHP = -1;
 		p.HP = -1;
@@ -20397,11 +20397,11 @@ static bool clif_show_monster_hp_bar(struct block_list *bl)
 
 	const struct mob_data *md = BL_UCCAST(BL_MOB, bl);
 	if (status_get_hp(bl) < status_get_max_hp(bl)) {
-		if ((battle->bc->show_monster_hp_bar & 1) != 0 && md->class_ != MOBID_EMPELIUM && (md->status.mode & MD_BOSS) == 0)
+		if ((battle->bc->show_monster_hp_bar & 1) != 0 && md->class_ != MOBID_EMPELIUM && (md->status.mode & MD_BOSS) == 0 && (md->status.mode & MD_GUARDIAN) == 0)
 			return true;
-		if ((battle->bc->show_monster_hp_bar & 2) != 0 && md->class_ == MOBID_EMPELIUM)
+		if ((battle->bc->show_monster_hp_bar & 2) != 0 && md->class_ == MOBID_EMPELIUM && (md->status.mode & MD_GUARDIAN) != 0)
 			return true;
-		if ((battle->bc->show_monster_hp_bar & 4) != 0 && (md->status.mode & MD_BOSS) != 0 && md->class_ != MOBID_EMPELIUM)
+		if ((battle->bc->show_monster_hp_bar & 4) != 0 && (md->status.mode & MD_BOSS) != 0 && (md->status.mode & MD_GUARDIAN) == 0 && md->class_ != MOBID_EMPELIUM)
 			return true;
 	}
 	return false;
