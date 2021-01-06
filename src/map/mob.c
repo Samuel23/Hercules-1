@@ -4493,6 +4493,8 @@ static uint32 mob_read_db_mode_sub(struct mob_db *entry, struct config_setting_t
 		mode |= libconfig->setting_get_bool(t2) ? MD_TARGETWEAK : MD_NONE;
 	if ((t2 = libconfig->setting_get_member(t, "NoKnockback")))
 		mode |= libconfig->setting_get_bool(t2) ? MD_NOKNOCKBACK : MD_NONE;
+	if ((t2 = libconfig->setting_get_member(t, "Guardian")))
+		mode |= libconfig->setting_get_bool(t2) ? MD_GUARDIAN : MD_NONE;
 
 	return mode & MD_MASK;
 }
