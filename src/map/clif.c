@@ -1419,7 +1419,7 @@ static void clif_set_unit_walking(struct block_list *bl, struct map_session_data
 #if PACKETVER >= 20120221
 	if (clif->show_monster_hp_bar(bl)) {
 		p.maxHP = status_get_max_hp(bl);
-		p.HP = status_get_hp(bl);sh
+		p.HP = status_get_hp(bl);
 	} else {
 		p.maxHP = -1;
 		p.HP = -1;
